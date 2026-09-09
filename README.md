@@ -450,7 +450,7 @@ sequenceDiagram
     Note over RT: close(lock.done) → Broadcast!
 
     RT-->>G1: "iPhone 15 Pro" (Status: MISS)
-    RT-->>G2: "iPhone 15 Pro" (Status: HIT) 
+    RT-->>G2: "iPhone 15 Pro" (Status: HIT)
     RT-->>G3: "iPhone 15 Pro" (Status: HIT)
 
     Note over DB: Hanya 1 query ke DB!<br/>Bukan 3 (atau 500)
@@ -963,4 +963,3 @@ Hasil pengujian benchmark pada Apple M1 (arm64):
 ## Lisensi
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for details.
-
