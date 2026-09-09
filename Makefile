@@ -1,5 +1,7 @@
 .PHONY: test bench cover run lint all
 
+GOLANGCI_LINT_CMD ?= $(shell command -v golangci-lint 2>/dev/null || echo "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest")
+
 test:
 	go test ./cache -v -race -count=1
 
@@ -14,6 +16,6 @@ run:
 	go run ./example
 
 lint:
-	golangci-lint run ./...
+	$(GOLANGCI_LINT_CMD) run ./...
 
 all: test bench lint
