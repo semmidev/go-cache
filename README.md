@@ -1,10 +1,24 @@
-# go-cache — High Performance In-Memory & Read-Through Cache
+<div align="center">
 
-**go-cache** adalah pustaka *in-memory cache* performa tinggi untuk Go yang menggabungkan teknik-teknik caching paling mutakhir dari dunia akademis dan industri: **S3-FIFO Eviction**, **TinyLFU Admission Control** via **Count-Min Sketch**, **Lock Striping**, dan **Read-Through Coalescing** pencegah *Cache Stampede*.
+# go-cache
 
-```
+**High Performance In-Memory & Read-Through Cache for Go**
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/semmidev/go-cache.svg)](https://pkg.go.dev/github.com/semmidev/go-cache)
+[![Go Report Card](https://goreportcard.com/badge/github.com/semmidev/go-cache)](https://goreportcard.com/report/github.com/semmidev/go-cache)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/semmidev/go-cache?style=flat-square&color=00ADD8)](https://go.dev)
+[![Release](https://img.shields.io/github/v/release/semmidev/go-cache?style=flat-square&color=blue)](https://github.com/semmidev/go-cache/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+
+<p>
+  Pustaka <i>in-memory cache</i> performa tinggi untuk Go yang menggabungkan teknik-teknik caching mutakhir: <b>S3-FIFO Eviction</b>, <b>TinyLFU Admission Control</b> via <b>Count-Min Sketch</b>, <b>Lock Striping</b>, dan <b>Read-Through Coalescing</b>.
+</p>
+
+```bash
 go get github.com/semmidev/go-cache
 ```
+
+</div>
 
 ---
 
