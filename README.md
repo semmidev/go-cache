@@ -1,4 +1,4 @@
-# 🚀 go-cache — High Performance In-Memory & Read-Through Cache
+# go-cache — High Performance In-Memory & Read-Through Cache
 
 **go-cache** adalah pustaka *in-memory cache* performa tinggi untuk Go yang menggabungkan teknik-teknik caching paling mutakhir dari dunia akademis dan industri: **S3-FIFO Eviction**, **TinyLFU Admission Control** via **Count-Min Sketch**, **Lock Striping**, dan **Read-Through Coalescing** pencegah *Cache Stampede*.
 
@@ -8,23 +8,23 @@ go get github.com/semmidev/go-cache
 
 ---
 
-## 📌 Daftar Isi
+## Daftar Isi
 
-1. [Mengapa go-cache?](#-mengapa-go-cache)
-2. [Arsitektur Tingkat Tinggi](#-arsitektur-tingkat-tinggi)
-3. [Deep Dive: S3-FIFO Eviction](#1--deep-dive-s3-fifo-eviction)
-4. [Deep Dive: TinyLFU & Count-Min Sketch](#2--deep-dive-tinylfu--count-min-sketch)
-5. [Deep Dive: Lock Striping / Sharding](#3--deep-dive-lock-striping--sharding-64-shards)
-6. [Deep Dive: Read-Through Cache & Anti-Stampede](#4--deep-dive-read-through-cache--anti-cache-stampede)
-7. [Deep Dive: Lock Age & Lock Timeout](#5--deep-dive-lock-age--lock-timeout)
-8. [Deep Dive: Context Cancellation Leak (Issue #931)](#6--deep-dive-context-cancellation-leak-fix-issue-931)
-9. [Panduan Penggunaan](#-panduan-penggunaan)
-10. [Pengujian & Benchmark](#-pengujian--benchmark)
-11. [Referensi Akademis & Industri](#-referensi-akademis--industri)
+1. [Mengapa go-cache?](#mengapa-go-cache)
+2. [Arsitektur Tingkat Tinggi](#arsitektur-tingkat-tinggi)
+3. [Deep Dive: S3-FIFO Eviction](#1-deep-dive-s3-fifo-eviction)
+4. [Deep Dive: TinyLFU & Count-Min Sketch](#2-deep-dive-tinylfu--count-min-sketch)
+5. [Deep Dive: Lock Striping / Sharding](#3-deep-dive-lock-striping--sharding-64-shards)
+6. [Deep Dive: Read-Through Cache & Anti-Stampede](#4-deep-dive-read-through-cache--anti-cache-stampede)
+7. [Deep Dive: Lock Age & Lock Timeout](#5-deep-dive-lock-age--lock-timeout)
+8. [Deep Dive: Context Cancellation Leak (Issue #931)](#6-deep-dive-context-cancellation-leak-fix-issue-931)
+9. [Panduan Penggunaan](#panduan-penggunaan)
+10. [Pengujian & Benchmark](#pengujian--benchmark)
+11. [Referensi Akademis & Industri](#referensi-akademis--industri)
 
 ---
 
-## 💡 Mengapa go-cache?
+## Mengapa go-cache?
 
 ### Problem Statement
 
@@ -42,17 +42,17 @@ Setiap aplikasi backend membutuhkan caching. Tapi caching yang *benar* ternyata 
 
 ### Keunggulan Utama
 
-- ✅ **S3-FIFO + TinyLFU** — Hit ratio lebih tinggi dari LRU/LFU/ARC dengan overhead mendekati nol
-- ✅ **64-Shard Lock Striping** — Concurrent read/write tanpa global lock contention
-- ✅ **Read-Through Coalescing** — 1000 request serentak = 1 database query
-- ✅ **Zero-Alloc Hot Path** — `Get()` pada cache hit: **0 B/op, 0 allocs/op**
-- ✅ **Context-Safe** — Tidak ada lock leak walaupun goroutine di-cancel
-- ✅ **Go Generics** — Type-safe tanpa casting: `cache.New[string, User]()`
-- ✅ **TTL Native** — Expirasi otomatis per-entry tanpa background goroutine
+- **S3-FIFO + TinyLFU** — Hit ratio lebih tinggi dari LRU/LFU/ARC dengan overhead mendekati nol
+- **64-Shard Lock Striping** — Concurrent read/write tanpa global lock contention
+- **Read-Through Coalescing** — 1000 request serentak = 1 database query
+- **Zero-Alloc Hot Path** — `Get()` pada cache hit: **0 B/op, 0 allocs/op**
+- **Context-Safe** — Tidak ada lock leak walaupun goroutine di-cancel
+- **Go Generics** — Type-safe tanpa casting: `cache.New[string, User]()`
+- **TTL Native** — Expirasi otomatis per-entry tanpa background goroutine
 
 ---
 
-## 🏗 Arsitektur Tingkat Tinggi
+## Arsitektur Tingkat Tinggi
 
 Sebelum masuk ke detail tiap komponen, berikut gambaran besar bagaimana seluruh bagian go-cache saling terhubung:
 
@@ -81,7 +81,7 @@ flowchart TD
     RT_GET --> |"1. Cek Cache"| HASH
     HASH --> SHARD
     SHARD --> MUTEX
-    MUTEX --> |HIT| RETURN_HIT["Return value ✅"]
+    MUTEX --> |HIT| RETURN_HIT["Return value"]
     MUTEX --> |MISS| LOCK_CHECK
     LOCK_CHECK --> |"Ya, tunggu"| WAIT["Suspend di channel\nlock.done"]
     LOCK_CHECK --> |"Tidak, ambil lock"| SF
@@ -99,9 +99,9 @@ Ada **dua layer utama**:
 
 ---
 
-## 🧠 Teknik & Istilah Utama — Technical Deep Dive
+## Teknik & Istilah Utama — Technical Deep Dive
 
-### 1. 📦 Deep Dive: S3-FIFO Eviction
+### 1. Deep Dive: S3-FIFO Eviction
 
 #### Sejarah & Latar Belakang
 
@@ -173,15 +173,15 @@ S3-FIFO menggunakan **dua antrean FIFO** (bukan linked list seperti LRU, melaink
 flowchart TD
     NEW["Item Baru Masuk"] --> SQ_TAIL["Masuk ke Tail\nSmall Queue"]
     SQ_TAIL --> SQ_FULL{"Small Queue\nPenuh?"}
-    SQ_FULL --> |Tidak| DONE["Selesai ✅"]
+    SQ_FULL --> |Tidak| DONE["Selesai"]
     SQ_FULL --> |Ya| CHECK_FREQ{"Cek freq item\ndi Head Small Queue"}
-    CHECK_FREQ --> |"freq < 2\n(One-Hit Wonder)"| DELETE_S["❌ Hapus dari Cache"]
-    CHECK_FREQ --> |"freq ≥ 2\n(Terbukti Populer)"| PROMOTE["⬆️ Promosi ke\nTail Main Queue"]
+    CHECK_FREQ --> |"freq < 2\n(One-Hit Wonder)"| DELETE_S["Hapus dari Cache"]
+    CHECK_FREQ --> |"freq ≥ 2\n(Terbukti Populer)"| PROMOTE["Promosi ke\nTail Main Queue"]
     PROMOTE --> MQ_FULL{"Main Queue\nPenuh?"}
     MQ_FULL --> |Tidak| DONE
     MQ_FULL --> |Ya| CHECK_MQ{"Cek freq item\ndi Head Main Queue"}
     CHECK_MQ --> |"freq > 1"| SECOND["freq-- lalu\nRe-queue ke Tail\n(Second Chance)"]
-    CHECK_MQ --> |"freq ≤ 1"| DELETE_M["❌ Hapus dari Cache"]
+    CHECK_MQ --> |"freq ≤ 1"| DELETE_M["Hapus dari Cache"]
     SECOND --> MQ_FULL
 ```
 
@@ -189,14 +189,14 @@ flowchart TD
 
 | Aspek | LRU | S3-FIFO |
 |-------|-----|---------|
-| **Scan Resistance** | ❌ Tidak. Burst scan menggeser item populer keluar | ✅ Ya. Small Queue menyaring "one-hit wonders" |
+| **Scan Resistance** | Tidak. Burst scan menggeser item populer keluar | Ya. Small Queue menyaring "one-hit wonders" |
 | **Overhead per-akses** | Perlu memindahkan node ke head linked list | Hanya increment counter `freq` (O(1)) |
 | **Implementasi** | Doubly-linked list + hash map | Dua slice + hash map (cache-friendly) |
 | **Thread-safety** | Lock setiap move-to-front | Lock hanya saat eviction |
 
 ---
 
-### 2. 🔬 Deep Dive: TinyLFU & Count-Min Sketch
+### 2. Deep Dive: TinyLFU & Count-Min Sketch
 
 #### Problem Statement
 
@@ -292,14 +292,14 @@ func shouldAdmit(newItemHash uint64) bool {
 
 ---
 
-### 3. 🔒 Deep Dive: Lock Striping / Sharding (64 Shards)
+### 3. Deep Dive: Lock Striping / Sharding (64 Shards)
 
 #### Problem Statement
 
 Cache diakses oleh banyak goroutine secara bersamaan. Solusi paling sederhana adalah satu `sync.Mutex` global:
 
 ```go
-// ❌ Naif: Global Lock
+// Naif: Global Lock
 type NaiveCache struct {
     mu    sync.Mutex      // Semua goroutine berebut 1 lock ini
     data  map[string]any
@@ -344,10 +344,10 @@ Ide dasarnya: **bagi data menjadi N partisi independen, masing-masing dengan loc
 **Power-of-two** memungkinkan penggantian operasi modulo (mahal) dengan **bitwise AND** (sangat murah):
 
 ```go
-// ❌ Lambat: operasi modulo
+// Lambat: operasi modulo
 shardIndex = hash % 64    // Division instruction (15-30 CPU cycles)
 
-// ✅ Cepat: bitwise AND (identik hasilnya karena 64 = 2⁶)
+// Cepat: bitwise AND (identik hasilnya karena 64 = 2⁶)
 shardIndex = hash & 63    // AND instruction (1 CPU cycle)
 //                 ^^
 //                 63 = 0x3F = 0b00111111 (bitmask)
@@ -355,7 +355,7 @@ shardIndex = hash & 63    // AND instruction (1 CPU cycle)
 
 ---
 
-### 4. 🛡 Deep Dive: Read-Through Cache & Anti-Cache Stampede
+### 4. Deep Dive: Read-Through Cache & Anti-Cache Stampede
 
 #### Problem Statement: Cache Stampede
 
@@ -427,7 +427,7 @@ sequenceDiagram
     Note over RT: G2, G3 mendapat lock → Waiter
 
     RT->>DB: LookupFunc("product:hot")
-    Note over G2,G3: ⏳ Menunggu di <-lock.done
+    Note over G2,G3: Menunggu di <-lock.done
 
     DB-->>RT: Return "iPhone 15 Pro"
     RT->>MC: ForcePut("product:hot", "iPhone 15 Pro", TTL)
@@ -437,19 +437,19 @@ sequenceDiagram
     RT-->>G2: "iPhone 15 Pro" (Status: HIT) 
     RT-->>G3: "iPhone 15 Pro" (Status: HIT)
 
-    Note over DB: Hanya 1 query ke DB! ✅<br/>Bukan 3 (atau 500)
+    Note over DB: Hanya 1 query ke DB!<br/>Bukan 3 (atau 500)
 ```
 
 #### Perbedaan `Put()` vs `ForcePut()`
 
 | Method | TinyLFU Check | Digunakan oleh | Kapan dipakai |
 |--------|:---:|:---:|---|
-| `Put()` | ✅ Ya | User langsung | Menyimpan data yang mungkin saja tidak populer |
-| `ForcePut()` | ❌ Bypass | RTCache internal | Menyimpan data hasil lookup — **harus** masuk cache karena sudah membayar ongkos query ke DB |
+| `Put()` | Ya | User langsung | Menyimpan data yang mungkin saja tidak populer |
+| `ForcePut()` | Bypass | RTCache internal | Menyimpan data hasil lookup — **harus** masuk cache karena sudah membayar ongkos query ke DB |
 
 ---
 
-### 5. ⏱ Deep Dive: Lock Age & Lock Timeout
+### 5. Deep Dive: Lock Age & Lock Timeout
 
 #### Problem: Executor yang Hang
 
@@ -503,15 +503,15 @@ Timeline Contoh (lockTimeout = 3s):
 T=0.0s  G1 mulai query DB (Executor)
 T=0.1s  G2 masuk, menunggu lock.done (Waiter)
 T=0.5s  G3 masuk, menunggu lock.done (Waiter)
-T=3.0s  ⏰ Timeout! G2 dan G3 melakukan fallback lookup sendiri
+T=3.0s  Timeout! G2 dan G3 melakukan fallback lookup sendiri
 T=3.1s  G2, G3 return CacheStale
 T=8.0s  G1 akhirnya selesai dari DB, simpan ke cache
-T=8.0s  Request berikutnya → Cache HIT ✅
+T=8.0s  Request berikutnya → Cache HIT
 ```
 
 ---
 
-### 6. 🔧 Deep Dive: Context Cancellation Leak Fix (Issue #931)
+### 6. Deep Dive: Context Cancellation Leak Fix (Issue #931)
 
 #### Latar Belakang Bug
 
@@ -586,12 +586,12 @@ T=1.0s  Context G1 dibatalkan!
 
 T=1.0s  G2 terbangun, cek cache → MISS → lakukan lookup sendiri
 T=1.1s  G4 datang → tidak menemukan lock lama → jadi Executor baru
-        → Sistem pulih secara otomatis! ✅
+        → Sistem pulih secara otomatis!
 ```
 
 ---
 
-## 📐 Diagram Arsitektur
+## Diagram Arsitektur
 
 ### 1. Struktur Sharded MemoryCache
 
@@ -618,8 +618,8 @@ flowchart TD
     TTL_CHECK --> |"Ya, expired"| CLEANUP["delete(table, key)\nremoveFromQueues(key)\nmisses++ → return (zero, false)"]
     TTL_CHECK --> |"Tidak"| FREQ["freq++ (max 10)\nsketch.Increment(hash)\nhits++"]
     FREQ --> PROMOTE{"freq ≥ 2?"}
-    PROMOTE --> |"Ya"| MOVE["promoteToMain(entry)\n⬆️ Small → Main Queue"]
-    PROMOTE --> |"Tidak"| RETURN["return (value, true) ✅"]
+    PROMOTE --> |"Ya"| MOVE["promoteToMain(entry)\nSmall → Main Queue"]
+    PROMOTE --> |"Tidak"| RETURN["return (value, true)"]
     MOVE --> RETURN
 ```
 
@@ -627,19 +627,19 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    In["🆕 Item Baru"] --> FULL{"Shard Penuh?"}
+    In["Item Baru"] --> FULL{"Shard Penuh?"}
     FULL --> |Tidak| INSERT["Masukkan ke\nSmall Queue"]
     FULL --> |Ya| ADMIT{"TinyLFU:\nnewFreq ≥ victimFreq?"}
-    ADMIT --> |"Tidak → Ditolak"| DROP_NEW["❌ Item Baru Dibuang"]
+    ADMIT --> |"Tidak → Ditolak"| DROP_NEW["Item Baru Dibuang"]
     ADMIT --> |"Ya → Diterima"| EVICT["Evict dari\nSmall Queue"]
     EVICT --> VFREQ{"Victim freq?"}
-    VFREQ --> |"< 2"| DROP_V["❌ Victim Dihapus"]
-    VFREQ --> |"≥ 2"| PROMOTE_V["⬆️ Victim → Main Queue"]
+    VFREQ --> |"< 2"| DROP_V["Victim Dihapus"]
+    VFREQ --> |"≥ 2"| PROMOTE_V["Victim → Main Queue"]
     PROMOTE_V --> MQ_FULL{"Main Queue Penuh?"}
     MQ_FULL --> |Tidak| INSERT
     MQ_FULL --> |Ya| MQ_EVICT{"Main Head freq?"}
-    MQ_EVICT --> |"> 1"| SECOND["freq--\n↩️ Re-queue ke Tail"]
-    MQ_EVICT --> |"≤ 1"| DROP_M["❌ Main Victim Dihapus"]
+    MQ_EVICT --> |"> 1"| SECOND["freq--\nRe-queue ke Tail"]
+    MQ_EVICT --> |"≤ 1"| DROP_M["Main Victim Dihapus"]
     DROP_V --> INSERT
     DROP_M --> INSERT
     SECOND --> MQ_FULL
@@ -647,7 +647,7 @@ flowchart LR
 
 ---
 
-## 💻 Panduan Penggunaan
+## Panduan Penggunaan
 
 ### Instalasi
 
@@ -773,7 +773,7 @@ for _, k := range keys {
 
 ---
 
-## ⚡ Pengujian & Benchmark
+## Pengujian & Benchmark
 
 ### Menjalankan Unit Test & Race Detector
 
@@ -813,7 +813,7 @@ make cover  # Generate coverage report
 
 ---
 
-## 📚 Referensi Akademis & Industri
+## Referensi Akademis & Industri
 
 | Topik | Referensi |
 |-------|-----------|
@@ -826,6 +826,6 @@ make cover  # Generate coverage report
 
 ---
 
-## 📄 Lisensi
+## Lisensi
 
-Distributed under the Apache-2.0 License.
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
