@@ -4,6 +4,7 @@
 
 **High Performance In-Memory & Read-Through Cache for Go**
 
+[![CI](https://github.com/semmidev/go-cache/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/semmidev/go-cache/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/semmidev/go-cache.svg)](https://pkg.go.dev/github.com/semmidev/go-cache)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/semmidev/go-cache?style=flat-square&color=00ADD8)](https://go.dev)
 [![Tag](https://img.shields.io/github/v/tag/semmidev/go-cache?style=flat-square&color=blue)](https://github.com/semmidev/go-cache/tags)
