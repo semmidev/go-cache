@@ -291,4 +291,3 @@ func TestLRUPingoraParityFeatures(t *testing.T) {
 		t.Fatalf("expected ShardLen = %d, got %d", c.Len(), c.ShardLen(0))
 	}
 }
-

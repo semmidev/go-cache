@@ -557,4 +557,3 @@ func (c *LRUCache[K, V]) ShardLen(shardIdx int) int {
 	}
 	return int(c.shardLens[shardIdx].Load())
 }
-
