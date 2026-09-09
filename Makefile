@@ -1,3 +1,5 @@
+.PHONY: test bench cover run lint all
+
 test:
 	go test ./cache -v -race -count=1
 
@@ -11,4 +13,7 @@ cover:
 run:
 	go run ./example
 
-all: test bench
+lint:
+	golangci-lint run ./...
+
+all: test bench lint

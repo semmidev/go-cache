@@ -63,7 +63,6 @@ func TestMemoryCacheEvictionS3FIFO(t *testing.T) {
 	}
 }
 
-
 // TestMemoryCacheConcurrent menguji keandalan thread-safety saat diakses serentak oleh banyak goroutine.
 func TestMemoryCacheConcurrent(t *testing.T) {
 	c := New[int, int](WithCapacity(1000))
@@ -106,4 +105,3 @@ func TestMemoryCacheForcePut(t *testing.T) {
 		t.Fatal("ForcePut should insert")
 	}
 }
-

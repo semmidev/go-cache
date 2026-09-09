@@ -119,4 +119,3 @@ func TestRTCacheMultiGet(t *testing.T) {
 	}
 	fmt.Printf("MultiGet ok %v\n", results)
 }
-

@@ -121,11 +121,11 @@ func NewRTCache[K comparable, V any, S any](opts ...RTOption) *RTCache[K, V, S] 
 
 // Get mengambil nilai dari cache jika ada (HIT).
 // Jika terjadi Cache Miss:
-// 1. Goroutine pertama akan mengambil lock internal, mengeksekusi LookupFunc ke database/origin,
-//    lalu menyimpan hasilnya ke cache (ForcePut) dan membuka lock.
-// 2. Goroutine lain yang meminta key sama pada saat bersamaan tidak akan memanggil database,
-//    melainkan menunggu sinyal selesai dari goroutine pertama (Request Coalescing).
-// 3. Menangani kasus pemicu pembatalan context secara aman (Issue #931 fix) tanpa meninggalkan stale lock.
+//  1. Goroutine pertama akan mengambil lock internal, mengeksekusi LookupFunc ke database/origin,
+//     lalu menyimpan hasilnya ke cache (ForcePut) dan membuka lock.
+//  2. Goroutine lain yang meminta key sama pada saat bersamaan tidak akan memanggil database,
+//     melainkan menunggu sinyal selesai dari goroutine pertama (Request Coalescing).
+//  3. Menangani kasus pemicu pembatalan context secara aman (Issue #931 fix) tanpa meninggalkan stale lock.
 func (c *RTCache[K, V, S]) Get(ctx context.Context, key K, ttl *time.Duration, extra *S, lookup LookupFunc[K, V, S]) (V, CacheStatus, error) {
 	// Fast-path: Cek cache internal terlebih dahulu
 	if v, ok := c.inner.Get(key); ok {
@@ -285,4 +285,3 @@ func (c *RTCache[K, V, S]) Len() int { return c.inner.Len() }
 
 // Clear mengosongkan seluruh isi cache internal.
 func (c *RTCache[K, V, S]) Clear() { c.inner.Clear() }
-

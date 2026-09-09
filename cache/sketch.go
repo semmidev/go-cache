@@ -98,4 +98,3 @@ func (t *tinyLFU) Reset() {
 
 // globalSeed digunakan sebagai perancak awal fungsi hash maphash secara global.
 var globalSeed = maphash.MakeSeed()
-

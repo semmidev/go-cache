@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://json.schemastore.org/golangci-lint.json
+version: "2"
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: none
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - gosec
+    - gocyclo
+    - gocognit
+    - unconvert
+    - unparam
+    - prealloc
+    - bodyclose
+    - exhaustive
+    - nilerr
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - errcheck
+          - gosec
+          - gocognit
+          - exhaustive
+          - unparam
+      - path: example/
+        linters:
+          - unparam
+          - gosec
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+    gocyclo:
+      min-complexity: 30
+    gocognit:
+      min-complexity: 60
+    gosec:
+      excludes:
+        - G103
+        - G104
+        - G115
+    exhaustive:
+      default-signifies-exhaustive: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -62,4 +62,3 @@ func BenchmarkRTCacheStampede(b *testing.B) {
 		}
 	})
 }
-
