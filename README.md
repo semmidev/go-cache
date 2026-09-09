@@ -7,7 +7,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/semmidev/go-cache.svg)](https://pkg.go.dev/github.com/semmidev/go-cache)
 [![Go Report Card](https://goreportcard.com/badge/github.com/semmidev/go-cache)](https://goreportcard.com/report/github.com/semmidev/go-cache)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/semmidev/go-cache?style=flat-square&color=00ADD8)](https://go.dev)
-[![Release](https://img.shields.io/github/v/release/semmidev/go-cache?style=flat-square&color=blue)](https://github.com/semmidev/go-cache/releases)
+[![Tag](https://img.shields.io/github/v/tag/semmidev/go-cache?style=flat-square&color=blue)](https://github.com/semmidev/go-cache/tags)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
 <p>
