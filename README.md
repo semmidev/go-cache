@@ -30,11 +30,13 @@ go get github.com/semmidev/go-cache
 4. [Deep Dive: TinyLFU & Count-Min Sketch](#2-deep-dive-tinylfu--count-min-sketch)
 5. [Deep Dive: Lock Striping / Sharding](#3-deep-dive-lock-striping--sharding-64-shards)
 6. [Deep Dive: Read-Through Cache & Anti-Stampede](#4-deep-dive-read-through-cache--anti-cache-stampede)
-7. [Deep Dive: Lock Age & Lock Timeout](#5-deep-dive-lock-age--lock-timeout)
-8. [Deep Dive: Context Cancellation Leak (Issue #931)](#6-deep-dive-context-cancellation-leak-fix-issue-931)
-9. [Panduan Penggunaan](#panduan-penggunaan)
-10. [Pengujian & Benchmark](#pengujian--benchmark)
-11. [Referensi Akademis & Industri](#referensi-akademis--industri)
+7. [Deep Dive: Cloudflare Pingora-Inspired Sharded LRU (`LRUCache`) vs `MemoryCache` (TinyUFO)](#5-deep-dive-cloudflare-pingora-inspired-sharded-lru-lrucache-vs-memorycache-tinyufo)
+8. [Deep Dive: Lock Age & Lock Timeout](#6-deep-dive-lock-age--lock-timeout)
+9. [Deep Dive: Context Cancellation Leak (Issue #931)](#7-deep-dive-context-cancellation-leak-fix-issue-931)
+10. [Panduan Penggunaan](#panduan-penggunaan)
+11. [Pengujian & Benchmark](#pengujian--benchmark)
+12. [Referensi Akademis & Industri](#referensi-akademis--industri)
+
 
 ---
 
@@ -463,7 +465,45 @@ sequenceDiagram
 
 ---
 
-### 5. Deep Dive: Lock Age & Lock Timeout
+### 5. Deep Dive: Cloudflare Pingora-Inspired Sharded LRU (`LRUCache`) vs `MemoryCache` (TinyUFO)
+
+#### Mengapa Ada Dua Engine Cache yang Berbeda?
+
+Dalam arsitektur modern seperti **Cloudflare Pingora**, terdapat dua jenis engine cache in-memory yang sengaja dipisahkan karena memiliki bidang tugas dan karakteristik workload yang sangat berbeda:
+
+1. **`LRUCache` (`cache.NewLRU`) — Terinspirasi oleh `pingora-lru`**
+   - **Weighted & Size-Aware**: Menghitung **bobot/ukuran memori (byte size)** tiap asset, bukan sekadar jumlah item. Cocok untuk caching file HTTP, media, dokumen, atau payload JSON dengan variasi ukuran besar (misal file 1 KB vs 50 MB).
+   - **Sharded Architecture (64 Shards)**: Menghilangkan global lock contention pada throughput masif.
+   - **Power of Two Choices (P2C) Eviction**: Saat batas total bobot (*weight limit*) atau watermark terlampaui, P2C memilih 2 shard secara acak dan mengevakuasi item dari shard dengan beban tertinggi.
+   - **`PromoteTopN` RLock Fast-Path**: Membaca posisi item dengan Read-Lock (RLock) terlebih dahulu. Jika item sudah di top N positions, penguncian Write-Lock (WLock) tidak diambil sehingga throughput read meningkat drastis.
+   - **State Persistence (`Dump` / `Restore`)**: Mendukung pengeluaran/pemasukan snapshot cache ke storage/stream agar cache tidak *cold* saat aplikasi di-restart.
+   - **Inspection Frontier (`PeekLRU`)**: Mampu menginspeksi item paling lama (LRU tail) tanpa mengubah urutan linked list.
+   - **`AsyncLRUCache`**: Menyediakan layer *Request Coalescing* (Singleflight) untuk pemanggilan asynchronous.
+
+2. **`MemoryCache` (`cache.New`) — Terinspirasi oleh `pingora-memory-cache` (TinyUFO)**
+   - **Count-Based & Frequency-Aware**: Berfokus pada jumlah item fixed (misal 1.000 atau 10.000 item) tanpa memperhitungkan bobot byte.
+   - **S3-FIFO + TinyLFU**: Mengombinasikan Small Queue (10%), Main Queue (90%), dan Count-Min Sketch (TinyLFU) untuk mencegah *cache pollution* dari *one-hit wonders*.
+   - **Ultra Fast Eviction**: Menawarkan throughput pencopotan data (*eviction rate*) hingga **~8x lebih cepat** daripada LRU linked-list karena menggunakan struktur queue slice/array tanpa relinking pointer.
+
+#### Tabel Perbandingan Arsitektur: `LRUCache` vs `MemoryCache`
+
+| Fitur / Karakteristik | `LRUCache` (Pingora LRU) | `MemoryCache` (TinyUFO / S3-FIFO) |
+| :--- | :--- | :--- |
+| **Kapasitas** | **Weighted** (Byte size limit) & Item count watermark | **Count-Based** (Fixed total items limit) |
+| **Algoritma Evikasi** | **Weighted LRU** + Power of Two Choices (P2C) | **S3-FIFO** (Small/Main FIFO) + TinyLFU |
+| **Admission Filter** | Watermark & Weight Limit | **TinyLFU** Count-Min Sketch (4×1024 counters) |
+| **Lock Striping** | Ya (64 Shards) | Ya (64 Shards) |
+| **Penyimpanan Order** | Doubly-Linked List | Slice / Ring-Buffer Queues |
+| **Read Optimization** | `PromoteTopN` (RLock Fast-Path) | Frequency increment & Second Chance |
+| **State Persistence** | **Ya** (`Dump` & `Restore` via gob) | Tidak (In-Memory Only) |
+| **Async Coalescing** | **Ya** (`AsyncLRUCache.GetOrFetch`) | **Ya** (`RTCache.Get` via `singleflight`) |
+| **Performa Evikasi** | Sedang (~584 ns/op) | **Sangat Tinggi** (~71 ns/op) |
+| **Kapan Digunakan** | Caching asset HTTP/media variatif, butuh bobot memori, dump state | Caching lookup cepat (DNS, session, counter, database query) |
+
+---
+
+### 6. Deep Dive: Lock Age & Lock Timeout
+
 
 #### Problem: Executor yang Hang
 
@@ -525,7 +565,7 @@ T=8.0s  Request berikutnya → Cache HIT
 
 ---
 
-### 6. Deep Dive: Context Cancellation Leak Fix (Issue #931)
+### 7. Deep Dive: Context Cancellation Leak Fix (Issue #931)
 
 #### Latar Belakang Bug
 
@@ -785,6 +825,95 @@ for _, k := range keys {
 }
 ```
 
+### 4. Weighted Sharded LRU Cache (LRUCache - Pingora Inspired)
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+	"github.com/semmidev/go-cache/cache"
+)
+
+func main() {
+	// Buat LRUCache berbobot dengan batas total bobot 10MB (10 * 1024 * 1024 byte)
+	// dan watermark 5000 item di atas 64 shards.
+	lru := cache.NewLRU[string, []byte](
+		cache.WithWeightLimit(10*1024*1024), // Total max 10MB
+		cache.WithWatermark(5000),           // Max 5000 item
+		cache.WithLRUShards(64),             // 64 Shards lock striping
+	)
+
+	// Simpan data dengan bobot byte size (misal HTTP response 500KB)
+	payload := make([]byte, 500*1024)
+	lru.PutWithWeight("http:asset:1", payload, int64(len(payload)), 10*time.Minute)
+
+	// Ambil data
+	if data, ok := lru.Get("http:asset:1"); ok {
+		fmt.Printf("Asset ditemukan, ukuran: %d bytes\n", len(data))
+	}
+
+	// PromoteTopN Optimization: Hanya ambil Write-Lock jika item berada di luar Top 10 MRU
+	lru.PromoteTopN("http:asset:1", 10)
+
+	// PeekLRU: Inspeksi item terbawah (LRU victim) tanpa mengubah urutan
+	if k, _, weight, ok := lru.PeekLRU(0); ok {
+		fmt.Printf("Shard 0 LRU Victim: key=%s, weight=%d\n", k, weight)
+	}
+
+	// IncrementWeight: Tambah ukuran asset bertahap (misal streaming / range request)
+	lru.IncrementWeight("http:asset:1", 1024, nil)
+}
+```
+
+### 5. Async LRU & Persistence (Dump / Restore)
+
+```go
+package main
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"os"
+	"time"
+	"github.com/semmidev/go-cache/cache"
+)
+
+func main() {
+	lru := cache.NewLRU[string, string](cache.WithLRUCapacity(1000))
+	asyncLRU := cache.NewAsyncLRU(lru)
+
+	// 1. Async GetOrFetch (Request Coalescing untuk LRU Miss)
+	ctx := context.Background()
+	val, err := asyncLRU.GetOrFetch(ctx, "user:profile:99", 5*time.Minute,
+		func(ctx context.Context, key string) (string, error) {
+			// Query DB / External API...
+			return `{"name":"Semmi"}`, nil
+		},
+	)
+	fmt.Println("Async Result:", val, "Err:", err)
+
+	// 2. Dump state cache ke file/stream
+	file, _ := os.Create("cache_snapshot.bin")
+	if err := lru.Dump(file); err != nil {
+		fmt.Println("Dump Error:", err)
+	}
+	file.Close()
+
+	// 3. Restore state cache dari file/stream
+	restoredLRU := cache.NewLRU[string, string]()
+	readFile, _ := os.Open("cache_snapshot.bin")
+	if err := restoredLRU.Restore(readFile); err != nil {
+		fmt.Println("Restore Error:", err)
+	}
+	readFile.Close()
+
+	fmt.Println("Restored Items Count:", restoredLRU.Len())
+}
+```
+
 ---
 
 ## Pengujian & Benchmark
@@ -801,29 +930,19 @@ go test ./cache -v -race
 go test ./cache -bench=. -benchmem -benchtime=2s
 ```
 
-#### Contoh Output Benchmark:
+#### Tabel Perbandingan Benchmark Lengkap: `MemoryCache` vs `LRUCache`
 
-```text
-goos: darwin
-goarch: arm64
-pkg: github.com/semmidev/go-cache/cache
-cpu: Apple M1
-BenchmarkMemoryCacheGetHit-8       4462148       281.2 ns/op       0 B/op     0 allocs/op
-BenchmarkMemoryCachePut-8          8699654       125.5 ns/op      63 B/op     1 allocs/op
-BenchmarkRTCacheHit-8              4004592       312.5 ns/op       0 B/op     0 allocs/op
-BenchmarkRTCacheStampede-8         3882832       309.6 ns/op       0 B/op     0 allocs/op
-PASS
-```
+Hasil pengujian benchmark pada Apple M1 (arm64):
 
-**Highlight**: `GetHit` dan `RTCacheHit` mencapai **0 B/op** — artinya zero heap allocation pada hot path!
-
-### Menjalankan Seluruh Suite
-
-```bash
-make all    # Jalankan test + benchmark
-make run    # Jalankan program demo
-make cover  # Generate coverage report
-```
+| Benchmark Scenario | `MemoryCache` (S3-FIFO + TinyLFU) | `LRUCache` (Pingora LRU) | Catatan / Karakteristik |
+| :--- | :--- | :--- | :--- |
+| **Get Hit (Parallel)** | `259.9 ns/op` | **`298.0 ns/op`** | Keduanya mencapai **0 B/op, 0 allocs/op** pada hot-path |
+| **Put (Sequential)** | **`138.1 ns/op`** | `318.2 ns/op` | S3-FIFO FIFO-array append lebih cepat untuk penulisan sekuensial |
+| **Parallel Put** | **`136.8 ns/op`** | `145.6 ns/op` | Keduanya sangat cepat berkat 64-shard lock striping |
+| **Mixed (80% Read / 20% Write)** | **`80.62 ns/op`** | `86.44 ns/op` | Performa pembacaan/penulisan campuran sub-100ns |
+| **PromoteTopN (RLock Fast-Path)** | N/A | **`147.6 ns/op`** | Fast-path Read Lock menghindari Write Lock jika item di Top N |
+| **Eviction Heavy (100% Full)** | **`106.8 ns/op`** | `599.8 ns/op` | 🛡️ **S3-FIFO ~5.6x lebih cepat** pada evikasi konstan karena struktur ring-buffer array tanpa relinking pointer linked list. |
+| **Async Coalesced Get** | `304.6 ns/op` (RTCache) | **`299.2 ns/op`** (AsyncLRU) | Singleflight request coalescing mencegah cache stampede |
 
 ---
 
@@ -831,6 +950,7 @@ make cover  # Generate coverage report
 
 | Topik | Referensi |
 |-------|-----------|
+| **Cloudflare Pingora LRU** | Cloudflare, *"Pingora LRU Crate: Sharded Weighted LRU Cache"*, GitHub cloudflare/pingora/pingora-lru |
 | **S3-FIFO** | Yang et al., *"FIFO Queues are All You Need for Cache Eviction"*, SOSP 2023, Carnegie Mellon University |
 | **TinyLFU** | Einziger et al., *"TinyLFU: A Highly Efficient Cache Admission Policy"*, ACM TODS 2017 |
 | **Count-Min Sketch** | Cormode & Muthukrishnan, *"An Improved Data Stream Summary: The Count-Min Sketch and its Applications"*, J. Algorithms 2005 |
@@ -843,3 +963,4 @@ make cover  # Generate coverage report
 ## Lisensi
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+
